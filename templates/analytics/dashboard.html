@@ -1,0 +1,230 @@
+{% extends 'base.html' %}
+
+{% block title %}Analytics Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2 class="text-white mb-4"><i class="fas fa-chart-line"></i> Analytics & Reports</h2>
+
+    <!-- Statistics Overview -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-white bg-primary">
+                <div class="card-body">
+                    <h6 class="card-title">Total Incidents</h6>
+                    <h2 id="totalIncidents">-</h2>
+                    <small>All time</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-success">
+                <div class="card-body">
+                    <h6 class="card-title">Resolved Cases</h6>
+                    <h2 id="resolvedCases">-</h2>
+                    <small>Successfully handled</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-warning text-dark">
+                <div class="card-body">
+                    <h6 class="card-title">Avg Response Time</h6>
+                    <h2 id="avgResponseTime">-</h2>
+                    <small>Minutes</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-danger">
+                <div class="card-body">
+                    <h6 class="card-title">Critical Cases</h6>
+                    <h2 id="criticalCases">-</h2>
+                    <small>High priority</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row 1 -->
+    <div class="row mb-4">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-chart-line"></i> Daily Incident Trends (Last 30 Days)</h5>
+                </div>
+                <div class="card-body" style="height: 460px;">
+                    <canvas id="dailyTrendsChart" height="100"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-chart-pie"></i> Emergency Type Distribution</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="typeDistributionChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row 2 -->
+    <div class="row mb-4">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-chart-bar"></i> Severity Distribution</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="severityChart"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-download"></i> Export Reports</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-primary" onclick="exportPDF()">
+                            <i class="fas fa-file-pdf"></i> Export to PDF
+                        </button>
+                        <button class="btn btn-success" onclick="exportExcel()">
+                            <i class="fas fa-file-excel"></i> Export to Excel
+                        </button>
+                        <button class="btn btn-info" onclick="generateReport()">
+                            <i class="fas fa-file-alt"></i> Generate Monthly Report
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<script>
+// Fetch analytics data
+fetch('{% url "analytics:api_data" %}')
+    .then(response => response.json())
+    .then(data => {
+        // Update statistics
+        document.getElementById('totalIncidents').textContent = data.total_incidents;
+        document.getElementById('resolvedCases').textContent = data.resolved_count;
+        document.getElementById('avgResponseTime').textContent = data.avg_response_time;
+        
+        // Daily Trends Chart
+        const dailyLabels = data.daily_trends.map(item => item.date);
+        const dailyData = data.daily_trends.map(item => item.count);
+        
+        new Chart(document.getElementById('dailyTrendsChart'), {
+            type: 'line',
+            data: {
+                labels: dailyLabels,
+                datasets: [{
+                    label: 'Incidents',
+                    data: dailyData,
+                    borderColor: '#667eea',
+                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: true
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+
+        // Type Distribution Chart
+        const typeLabels = data.type_distribution.map(item => item.emergency_type);
+        const typeData = data.type_distribution.map(item => item.count);
+        
+        new Chart(document.getElementById('typeDistributionChart'), {
+            type: 'doughnut',
+            data: {
+                labels: typeLabels,
+                datasets: [{
+                    data: typeData,
+                    backgroundColor: [
+                        '#FF6384',
+                        '#36A2EB',
+                        '#FFCE56',
+                        '#4BC0C0',
+                        '#9966FF',
+                        '#FF9F40'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+
+        // Severity Chart
+        const severityLabels = data.severity_distribution.map(item => item.severity);
+        const severityData = data.severity_distribution.map(item => item.count);
+        
+        new Chart(document.getElementById('severityChart'), {
+            type: 'bar',
+            data: {
+                labels: severityLabels,
+                datasets: [{
+                    label: 'Count',
+                    data: severityData,
+                    backgroundColor: [
+                        '#28a745',
+                        '#ffc107',
+                        '#ff6b6b',
+                        '#dc3545'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    });
+
+function exportPDF() {
+    alert('PDF export functionality - Integrate with jsPDF library');
+}
+
+function exportExcel() {
+    alert('Excel export functionality - Integrate with xlsx library');
+}
+
+function generateReport() {
+    alert('Monthly report generation - Create automated reports');
+}
+</script>
+{% endblock %}

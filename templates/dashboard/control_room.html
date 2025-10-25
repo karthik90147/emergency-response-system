@@ -1,0 +1,180 @@
+{% extends 'base.html' %}
+
+{% block title %}Control Room Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2 class="text-white mb-4"><i class="fas fa-tachometer-alt"></i> Control Room Dashboard</h2>
+    
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-white bg-primary">
+                <div class="card-body">
+                    <h5 class="card-title">Total Incidents</h5>
+                    <h2>{{ total_incidents }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-danger">
+                <div class="card-body">
+                    <h5 class="card-title">Pending</h5>
+                    <h2>{{ pending_incidents }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-success">
+                <div class="card-body">
+                    <h5 class="card-title">Resolved</h5>
+                    <h2>{{ resolved_incidents }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-info">
+                <div class="card-body">
+                    <h5 class="card-title">Available Responders</h5>
+                    <h2>{{ available_responders.count }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Active Incidents Map -->
+    <!-- <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-map"></i> Active Incidents Map</h5>
+                </div>
+                <div class="card-body">
+                    <div id="dashboardMap" style="height: 500px;"></div>
+                </div>
+            </div>
+        </div>
+    </div> -->
+    
+    <!-- Recent Incidents Table -->
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-list"></i> Recent Incidents</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Type</th>
+                                    <th>Severity</th>
+                                    <th>Status</th>
+                                    <th>Time</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for incident in recent_incidents %}
+                                <tr>
+                                    <td>{{ incident.incident_id }}</td>
+                                    <td>{{ incident.get_emergency_type_display }}</td>
+                                    <td><span class="emergency-badge severity-{{ incident.severity }}">{{ incident.severity }}</span></td>
+                                    <td>{{ incident.get_status_display }}</td>
+                                    <td>{{ incident.reported_at|date:"M d, H:i" }}</td>
+                                    <td>
+                                        <a href="{% url 'incidents:incident_detail' incident.incident_id %}" class="btn btn-sm btn-primary">
+                                            View
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <!-- Emergency Type Breakdown -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5><i class="fas fa-chart-pie"></i> Emergency Types</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group">
+                        {% for item in type_breakdown %}
+                        <li class="list-group-item d-flex justify-content-between">
+                            <span>{{ item.emergency_type }}</span>
+                            <span class="badge bg-primary">{{ item.count }}</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- Severity Breakdown -->
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-exclamation-triangle"></i> Severity Levels</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group">
+                        {% for item in severity_breakdown %}
+                        <li class="list-group-item d-flex justify-content-between">
+                            <span>{{ item.severity }}</span>
+                            <span class="badge bg-danger">{{ item.count }}</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Initialize Dashboard Map
+const dashboardMap = L.map('dashboardMap').setView([12.9716, 77.5946], 12);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors'
+}).addTo(dashboardMap);
+
+// Add markers for active incidents
+const activeIncidents = {{ active_incidents_json|safe }};
+
+// If there are active incidents, fit the map to show all of them
+if (activeIncidents && activeIncidents.length > 0) {
+    // Create markers for each incident
+    const markers = [];
+    
+    activeIncidents.forEach((incident, index) => {
+        const marker = L.marker([incident.latitude, incident.longitude])
+            .addTo(dashboardMap)
+            .bindPopup(`
+                <strong>${incident.incident_id}</strong><br>
+                Type: ${incident.emergency_type}<br>
+                Severity: ${incident.severity}<br>
+                Status: ${incident.status}
+            `);
+        markers.push(marker);
+    });
+    
+    // Create a group and fit the map to show all markers
+    const group = new L.featureGroup(markers);
+    dashboardMap.fitBounds(group.getBounds().pad(0.1));
+} else {
+    // If no incidents, show default view
+    dashboardMap.setView([12.9716, 77.5946], 12);
+}
+
+// Auto-refresh every 30 seconds
+setInterval(() => {
+    location.reload();
+}, 30000);
+</script>
+{% endblock %}

@@ -1,0 +1,358 @@
+{% extends 'base.html' %}
+
+{% block title %}Report Emergency - Emergency Response System{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Hero Section -->
+    <div class="row justify-content-center mb-5">
+        <div class="col-lg-10">
+            <div class="card text-center border-0 shadow-lg" style="background: linear-gradient(135deg, #3a1c71 0%, #d76d77 50%, #ffaf7b 100%); color: white; border-radius: 15px; overflow: hidden;">
+                <div class="card-body py-5">
+                    <div class="position-absolute top-0 end-0 p-3">
+                        <div class="badge bg-light text-dark rounded-pill px-3 py-2 shadow-sm">24/7 Support</div>
+                    </div>
+                    <h1 class="display-4 fw-bold mb-4"><i class="fas fa-heartbeat me-2"></i>Emergency Response System</h1>
+                    <p class="lead fs-4 mb-4">AI-Powered Emergency Reporting with Real-Time Response</p>
+                    <div class="row justify-content-center">
+                        <div class="col-md-8">
+                            <p class="mb-4">Quick response saves lives. Report emergencies instantly and get help dispatched to your location.</p>
+                        </div>
+                    </div>
+                    <div class="mt-4 d-flex justify-content-center gap-3">
+                        <a href="#emergency-form" class="btn btn-light btn-lg px-4 py-2 shadow-sm rounded-pill">
+                            <i class="fas fa-arrow-down me-2"></i>Report Now
+                        </a>
+                        <a href="#" class="btn btn-outline-light btn-lg px-4 py-2 rounded-pill">
+                            <i class="fas fa-info-circle me-2"></i>Learn More
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Emergency Report Form with Map on Left -->
+    <div class="row justify-content-center" id="emergency-form">
+        <div class="col-lg-10">
+            <div class="card shadow-lg border-0" style="border-radius: 15px; overflow: hidden; background: linear-gradient(to bottom, #f8f9fa, #ffffff);">
+                <div class="card-header py-4" style="background: linear-gradient(to right, #dc3545, #fd7e14); color: white;">
+                    <div class="d-flex align-items-center">
+                        <div class="rounded-circle bg-white p-2 me-3 shadow-sm">
+                            <i class="fas fa-phone-volume text-danger fa-lg"></i>
+                        </div>
+                        <h3 class="mb-0 fw-bold">Report Emergency</h3>
+                    </div>
+                </div>
+                <div class="card-body p-4">
+                    <div class="alert alert-info rounded-3 shadow-sm mb-4">
+                        <div class="d-flex">
+                            <div class="me-3">
+                                <i class="fas fa-info-circle fa-2x text-primary"></i>
+                            </div>
+                            <div>
+                                <h5 class="alert-heading">Quick Instructions</h5>
+                                <p class="mb-0">Please provide at least one of: Emergency Description, Voice Report, or Image Upload. Your location will be automatically detected.</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <!-- Map on Left Side -->
+                        <div class="col-md-5">
+                            <div class="card border-0 bg-light rounded-3 h-100">
+                                <div class="card-body">
+                                    <h5 class="card-title mb-3 text-danger"><i class="fas fa-map-marker-alt me-2"></i>Location Information</h5>
+                                    <p class="text-muted mb-2"><small>Your location is being automatically detected</small></p>
+                                    
+                                    <div id="locationInfo" class="mb-3 text-success fw-bold"></div>
+                                
+                                    <!-- Map -->
+                                    <div id="map" class="rounded-3 shadow-sm" style="height: 400px;"></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Form on Right Side -->
+                        <div class="col-md-7">
+                            <form id="emergencyForm" enctype="multipart/form-data" class="needs-validation">
+                                {% csrf_token %}
+                                <!-- Hidden location fields moved inside the form -->
+                                <input type="hidden" id="latitude" name="latitude" required>
+                                <input type="hidden" id="longitude" name="longitude" required>
+                                <input type="hidden" id="address" name="address">
+                                
+                                <!-- Reporter Information -->
+                                <div class="row mb-4">
+                                    <div class="col-md-6">
+                                        <div class="form-floating mb-3">
+                                            <input type="text" class="form-control rounded-pill" name="reporter_name" id="reporter_name" placeholder="Enter your name">
+                                            <label for="reporter_name">Your Name (Optional)</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-floating mb-3">
+                                            <input type="tel" class="form-control rounded-pill" name="reporter_phone" id="reporter_phone" placeholder="+91 XXXXXXXXXX">
+                                            <label for="reporter_phone">Contact Number (Optional)</label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="form-floating mb-4">
+                                    <input type="email" class="form-control rounded-pill" name="reporter_email" id="reporter_email" placeholder="your.email@example.com">
+                                    <label for="reporter_email">Email (Optional)</label>
+                                </div>
+
+                                <!-- Emergency Information Section -->
+                                <div class="card mb-4 border-0 bg-light rounded-3">
+                                    <div class="card-body">
+                                        <h5 class="card-title mb-3 text-danger"><i class="fas fa-info-circle me-2"></i>Emergency Details</h5>
+                                        
+                                        <!-- Emergency Description -->
+                                        <div class="mb-4">
+                                            <label class="form-label fw-bold">Describe the Emergency</label>
+                                            <textarea class="form-control rounded-3 border-0 shadow-sm" id="description" name="description" rows="4" 
+                                                placeholder="Please describe what happened..."></textarea>
+                                        </div>
+
+                                        <!-- Voice Input -->
+                                        <div class="mb-4">
+                                            <label class="form-label fw-bold">Voice Report</label>
+                                            <div class="input-group">
+                                                <button type="button" class="btn btn-primary rounded-start" id="voiceBtn">
+                                                    <i class="fas fa-microphone me-2"></i>Start Voice Input
+                                                </button>
+                                                <input type="text" class="form-control rounded-end shadow-sm" id="voiceTranscript" name="voice_transcript" 
+                                                placeholder="Click the microphone to speak..." readonly>
+                                            </div>
+                                            <small class="text-muted mt-2 d-block">Click the button and speak to add voice description</small>
+                                        </div>
+
+                                        <!-- Image Upload -->
+                                        <div class="mb-4">
+                                            <label class="form-label fw-bold">Upload Image</label>
+                                            <div class="input-group">
+                                                <input type="file" class="form-control rounded shadow-sm" name="image" accept="image/*" id="imageInput">
+                                            </div>
+                                            <small class="text-muted mt-2 d-block">Upload a photo of the emergency</small>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Submit Button -->
+                                <button type="submit" class="btn btn-danger btn-lg w-100 rounded-pill shadow-lg py-3 mt-4" id="submitBtn" style="background: linear-gradient(to right, #dc3545, #fd7e14); border: none; font-weight: bold; letter-spacing: 1px;">
+                                    <i class="fas fa-paper-plane me-2"></i>REPORT EMERGENCY
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Result Message -->
+                    <div id="resultMessage" class="alert mt-4 rounded-3 shadow-sm text-center" style="display: none;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let map, marker;
+let recognition;
+
+// Initialize Map
+function initMap() {
+    map = L.map('map').setView([12.9716, 77.5946], 13); // Bengaluru default
+    
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 19
+    }).addTo(map);
+    
+    // Automatically get location when page loads
+    getLocation();
+}
+
+// Get Current Location
+function getLocation() {
+    document.getElementById('locationInfo').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Detecting your location...';
+    
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition((position) => {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            
+            document.getElementById('latitude').value = lat;
+            document.getElementById('longitude').value = lng;
+            
+            // Update map
+            if (marker) {
+                map.removeLayer(marker);
+            }
+            
+            marker = L.marker([lat, lng]).addTo(map);
+            map.setView([lat, lng], 15);
+            
+            // Reverse geocoding using Nominatim
+            fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+                .then(response => response.json())
+                .then(data => {
+                    const address = data.display_name;
+                    document.getElementById('address').value = address;
+                    document.getElementById('locationInfo').innerHTML = 
+                        `<i class="fas fa-check-circle"></i> Location captured: ${address}`;
+                });
+        }, (error) => {
+            console.error('Error getting location:', error);
+            document.getElementById('locationInfo').innerHTML = 
+                '<i class="fas fa-exclamation-triangle text-danger"></i> Unable to get location. <a href="#" onclick="getLocation(); return false;">Try again</a>';
+        });
+    } else {
+        document.getElementById('locationInfo').innerHTML = 
+            '<i class="fas fa-exclamation-triangle text-danger"></i> Geolocation is not supported by your browser';
+    }
+}
+
+// Voice Recognition
+if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+    
+    const voiceBtn = document.getElementById('voiceBtn');
+    const voiceTranscript = document.getElementById('voiceTranscript');
+    
+    voiceBtn.addEventListener('click', function() {
+        recognition.start();
+        this.innerHTML = '<i class="fas fa-microphone-slash"></i> Listening...';
+        this.classList.add('btn-danger');
+    });
+    
+    recognition.onresult = function(event) {
+        const transcript = event.results[0][0].transcript;
+        voiceTranscript.value = transcript;
+        
+        // Also append to description
+        const description = document.getElementById('description');
+        if (description.value) {
+            description.value += ' ' + transcript;
+        } else {
+            description.value = transcript;
+        }
+    };
+    
+    recognition.onend = function() {
+        voiceBtn.innerHTML = '<i class="fas fa-microphone"></i> Start Voice Input';
+        voiceBtn.classList.remove('btn-danger');
+    };
+    
+    recognition.onerror = function(event) {
+        alert('Voice recognition error: ' + event.error);
+        voiceBtn.innerHTML = '<i class="fas fa-microphone"></i> Start Voice Input';
+        voiceBtn.classList.remove('btn-danger');
+    };
+} else {
+    document.getElementById('voiceBtn').disabled = true;
+    document.getElementById('voiceBtn').innerHTML = '<i class="fas fa-times"></i> Voice not supported';
+}
+
+// Form Submission
+document.getElementById('emergencyForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    // Validate that at least one of the three fields is filled
+    const description = document.getElementById('description').value.trim();
+    const voiceTranscript = document.getElementById('voiceTranscript').value.trim();
+    const imageInput = document.getElementById('imageInput').files.length;
+    
+    if (!description && !voiceTranscript && !imageInput) {
+        document.getElementById('resultMessage').style.display = 'block';
+        document.getElementById('resultMessage').className = 'alert alert-danger mt-4 rounded-3 shadow-sm text-center';
+        document.getElementById('resultMessage').innerHTML = `
+            <i class="fas fa-exclamation-triangle me-2"></i> Error: Please provide at least one of the following: Description, Voice Report, or Image.
+        `;
+        
+        // Highlight empty fields
+        if (!description) document.getElementById('description').classList.add('border-danger');
+        if (!voiceTranscript) document.getElementById('voiceTranscript').classList.add('border-danger');
+        if (!imageInput) document.getElementById('imageInput').classList.add('border-danger');
+        
+        // Scroll to error message
+        document.getElementById('resultMessage').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+    }
+    
+    // Remove any error highlighting
+    document.getElementById('description').classList.remove('border-danger');
+    document.getElementById('voiceTranscript').classList.remove('border-danger');
+    document.getElementById('imageInput').classList.remove('border-danger');
+    
+    const submitBtn = document.getElementById('submitBtn');
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Reporting Emergency...';
+    
+    const formData = new FormData(this);
+    
+    fetch('{% url "incidents:report_emergency" %}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById('resultMessage').style.display = 'block';
+        if (data.success) {
+            document.getElementById('resultMessage').className = 'alert alert-success mt-4 rounded-3 shadow-sm text-center';
+            document.getElementById('resultMessage').innerHTML = `
+                <div>
+                    <h4><i class="fas fa-check-circle me-2"></i> Emergency Reported Successfully!</h4>
+                    <p><strong>Incident ID:</strong> ${data.incident_id}</p>
+                    <p><strong>Type:</strong> ${data.emergency_type}</p>
+                    <p><strong>Severity:</strong> ${data.severity}</p>
+                    <p><strong>Responders Assigned:</strong> ${data.responders_assigned}</p>
+                    <p class="mb-0">${data.message}</p>
+                    <a href="/incident/${data.incident_id}/" class="btn btn-primary mt-2">
+                        <i class="fas fa-eye"></i> Track Incident
+                    </a>
+                </div>
+            `;
+            this.reset();
+            if (marker) map.removeLayer(marker);
+            
+            // Scroll to the result message
+            document.getElementById('resultMessage').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+            document.getElementById('resultMessage').className = 'alert alert-danger mt-4 rounded-3 shadow-sm text-center';
+            document.getElementById('resultMessage').innerHTML = `
+                <i class="fas fa-exclamation-triangle me-2"></i> Error: ${data.error}
+            `;
+        }
+    })
+    .catch(error => {
+        document.getElementById('resultMessage').style.display = 'block';
+        document.getElementById('resultMessage').className = 'alert alert-danger mt-4 rounded-3 shadow-sm text-center';
+        document.getElementById('resultMessage').innerHTML = `
+            <i class="fas fa-exclamation-triangle me-2"></i> Error submitting report. Please try again.
+        `;
+    })
+    .finally(() => {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-paper-plane me-2"></i> REPORT EMERGENCY';
+    });
+    
+    // Add event listeners to remove error highlighting when user starts typing/selecting
+    document.getElementById('description').addEventListener('input', function() {
+        this.classList.remove('border-danger');
+    });
+    document.getElementById('voiceTranscript').addEventListener('input', function() {
+        this.classList.remove('border-danger');
+    });
+    document.getElementById('imageInput').addEventListener('change', function() {
+        this.classList.remove('border-danger');
+    });
+});
+
+// Initialize map on load
+window.addEventListener('load', initMap);
+</script>
+{% endblock %}
