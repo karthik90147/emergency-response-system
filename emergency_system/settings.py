@@ -109,10 +109,10 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'pythoncoding4u@gmail.com'
-EMAIL_HOST_PASSWORD = 'bbxemzstvizslzbp'
-DEFAULT_FROM_EMAIL = 'pythoncoding4u@gmail.com'
-CONTACT_EMAIL = 'pythoncoding4u@gmail.com'
+EMAIL_HOST_USER = 'navadeepbakulapally7118@gmail.com'
+EMAIL_HOST_PASSWORD = 'wfqxzrvoizldyzhr'
+DEFAULT_FROM_EMAIL = 'navadeepbakulapally7118@gmail.com'
+CONTACT_EMAIL = 'navadeepbakulapally7118@gmail.com'
 
 # Disable SSL certificate verification in development
 import ssl

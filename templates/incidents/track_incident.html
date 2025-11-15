@@ -3,132 +3,208 @@
 {% block title %}Track Incident {{ incident.incident_id }}{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="row">
-        <div class="col-lg-9">
-            <div class="card">
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-8"> 
+            
+            <div class="card text-center mb-4">
                 <div class="card-header bg-primary text-white">
-                    <h4><i class="fas fa-map"></i> Live Tracking - {{ incident.incident_id }}</h4>
+                    <h4><i class="fas fa-satellite-dish"></i> Incident Tracking - {{ incident.incident_id }}</h4>
                 </div>
                 <div class="card-body">
-                    <div id="trackingMap" style="height: 600px;"></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-lg-3">
-            <div class="card">
-                <div class="card-header bg-info text-white">
-                    <h5><i class="fas fa-info-circle"></i> Incident Info</h5>
-                </div>
-                <div class="card-body">
-                    <p><strong>ID:</strong> {{ incident.incident_id }}</p>
-                    <p><strong>Type:</strong> {{ incident.get_emergency_type_display }}</p>
-                    <p><strong>Severity:</strong> 
-                        <span class="emergency-badge severity-{{ incident.severity }}">
-                            {{ incident.get_severity_display }}
+                    <h5 class="card-title">Current Status:</h5>
+                    <h1 class="display-3 fw-bold my-4">
+                        <span class="emergency-badge status-{{ incident.status }}">
+                            {{ incident.get_status_display }}
                         </span>
-                    </p>
-                    <p><strong>Status:</strong> 
-                        <span class="badge bg-info">{{ incident.get_status_display }}</span>
-                    </p>
-                    <p><strong>Reported:</strong> {{ incident.reported_at|date:"M d, H:i" }}</p>
+                    </h1>
+                    <p class="text-muted">Updated: {{ incident.updated_at|date:"M d, H:i:s" }}</p>
                 </div>
             </div>
 
-            <div class="card mt-3">
+            <div class="card mt-4">
                 <div class="card-header bg-success text-white">
-                    <h5><i class="fas fa-ambulance"></i> Responders</h5>
+                    <h5><i class="fas fa-history"></i> Incident History & Timeline</h5>
                 </div>
-                <div class="card-body" id="respondersList">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Loading...</span>
+                <div class="card-body">
+                    <div class="timeline">
+
+                        {% comment %} 
+                            Timeline Structure Logic:
+                            We display steps based on the presence of timestamps. 
+                            The CSS in base.html uses a custom class to represent the status circle.
+                            The most recent status is highlighted.
+                        {% endcomment %}
+
+                        <div class="timeline-item">
+                            <div class="timeline-badge status-REPORTED {% if incident.status == 'REPORTED' %}active{% endif %}">
+                                <i class="fas fa-bell"></i>
+                            </div>
+                            <div class="timeline-panel">
+                                <div class="timeline-heading">
+                                    <h4 class="timeline-title">Reported</h4>
+                                    <p><small class="text-muted"><i class="fas fa-clock"></i> {{ incident.reported_at|date:"M d, H:i:s" }}</small></p>
+                                </div>
+                                <div class="timeline-body">
+                                    <p>Emergency call/report was successfully received by the system.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {% if incident.dispatched_at or incident.status in 'IN_PROGRESS,RESOLVED,CLOSED' %}
+                        <div class="timeline-item">
+                            <div class="timeline-badge status-DISPATCHED {% if incident.status == 'DISPATCHED' %}active{% endif %}">
+                                <i class="fas fa-truck-moving"></i>
+                            </div>
+                            <div class="timeline-panel">
+                                <div class="timeline-heading">
+                                    <h4 class="timeline-title">Responders Dispatched</h4>
+                                    <p><small class="text-muted"><i class="fas fa-clock"></i> {{ incident.dispatched_at|default:"Pending"|date:"M d, H:i:s" }}</small></p>
+                                </div>
+                                <div class="timeline-body">
+                                    <p>Emergency responders have been assigned and dispatched to the location.</p>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {% if incident.status in 'IN_PROGRESS,RESOLVED,CLOSED' %}
+                        <div class="timeline-item">
+                            <div class="timeline-badge status-IN_PROGRESS {% if incident.status == 'IN_PROGRESS' %}active{% endif %}">
+                                <i class="fas fa-tasks"></i>
+                            </div>
+                            <div class="timeline-panel">
+                                <div class="timeline-heading">
+                                    <h4 class="timeline-title">In Progress / On Scene</h4>
+                                    <p><small class="text-muted"><i class="fas fa-clock"></i> {{ incident.dispatched_at|default:"N/A"|date:"M d, H:i:s" }}</small></p>
+                                </div>
+                                <div class="timeline-body">
+                                    <p>Responders are actively managing the incident at the location.</p>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {% if incident.resolved_at or incident.status == 'CLOSED' %}
+                        <div class="timeline-item">
+                            <div class="timeline-badge status-RESOLVED {% if incident.status == 'RESOLVED' %}active{% endif %}">
+                                <i class="fas fa-handshake"></i>
+                            </div>
+                            <div class="timeline-panel">
+                                <div class="timeline-heading">
+                                    <h4 class="timeline-title">Incident Resolved</h4>
+                                    <p><small class="text-muted"><i class="fas fa-clock"></i> {{ incident.resolved_at|default:"Pending"|date:"M d, H:i:s" }}</small></p>
+                                </div>
+                                <div class="timeline-body">
+                                    <p>The emergency situation has been brought under control and resolved.</p>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        {% if incident.status == 'CLOSED' %}
+                        <div class="timeline-item">
+                            <div class="timeline-badge status-CLOSED active">
+                                <i class="fas fa-check-circle"></i>
+                            </div>
+                            <div class="timeline-panel">
+                                <div class="timeline-heading">
+                                    <h4 class="timeline-title">Closed</h4>
+                                    <p><small class="text-muted"><i class="fas fa-clock"></i> {{ incident.updated_at|default:"N/A"|date:"M d, H:i:s" }}</small></p>
+                                </div>
+                                <div class="timeline-body">
+                                    <p>The incident report is formally closed in the system.</p>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        
                     </div>
                 </div>
             </div>
-
-            <div class="card mt-3">
-                <div class="card-header bg-warning text-dark">
-                    <h5><i class="fas fa-clock"></i> ETA</h5>
-                </div>
-                <div class="card-body">
-                    <h3 id="eta" class="text-center">Calculating...</h3>
-                </div>
-            </div>
-
-            <div class="card mt-3">
+            <div class="card mt-4">
                 <div class="card-header bg-info text-white">
-                    <h5><i class="fas fa-hospital"></i> Nearby Services</h5>
+                    <h5><i class="fas fa-file-alt"></i> Incident Reference Details</h5>
                 </div>
-                <div class="card-body">
-                    <!-- Nearby Hospitals -->
-                    {% if nearby_hospitals %}
-                        <h6><i class="fas fa-hospital"></i> Hospitals</h6>
-                        {% for hospital in nearby_hospitals %}
-                        <div class="border p-2 mb-2 rounded">
-                            <p class="mb-1"><strong>{{ hospital.name }}</strong></p>
-                            <p class="mb-0"><small>{{ hospital.distance|floatformat:2 }} km</small></p>
-                        </div>
-                        {% endfor %}
-                    {% endif %}
-                    
-                    <!-- Nearby Police Stations -->
-                    {% if nearby_police %}
-                        <h6 class="mt-2"><i class="fas fa-shield-alt"></i> Police</h6>
-                        {% for station in nearby_police %}
-                        <div class="border p-2 mb-2 rounded">
-                            <p class="mb-1"><strong>{{ station.name }}</strong></p>
-                            <p class="mb-0"><small>{{ station.distance|floatformat:2 }} km</small></p>
-                        </div>
-                        {% endfor %}
-                    {% endif %}
-                    
-                    <!-- Nearby Fire Stations -->
-                    {% if nearby_fire %}
-                        <h6 class="mt-2"><i class="fas fa-fire-extinguisher"></i> Fire</h6>
-                        {% for station in nearby_fire %}
-                        <div class="border p-2 mb-2 rounded">
-                            <p class="mb-1"><strong>{{ station.name }}</strong></p>
-                            <p class="mb-0"><small>{{ station.distance|floatformat:2 }} km</small></p>
-                        </div>
-                        {% endfor %}
-                    {% endif %}
+                <div class="card-body text-start">
+                    <p><strong>Incident ID:</strong> {{ incident.incident_id }}</p>
+                    <p><strong>Type:</strong> {{ incident.get_emergency_type_display }}</p>
+                    <p class="mb-0"><strong>Location:</strong> {{ incident.address|default:"Coordinates available to dispatchers." }}</p>
                 </div>
             </div>
+
         </div>
     </div>
 </div>
 
+<style>
+    /* Custom CSS for the Timeline Structure (Place inside your global CSS or here) */
+    .timeline {
+        list-style-type: none;
+        position: relative;
+        padding: 20px 0;
+    }
+    .timeline:before {
+        content: '';
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 4px;
+        background: #ced4da;
+        left: 31px; /* Center the line */
+        margin-left: -1.5px;
+    }
+    .timeline-item {
+        position: relative;
+        margin-bottom: 20px;
+    }
+    .timeline-item:after {
+        clear: both;
+        display: table;
+        content: " ";
+    }
+    .timeline-badge {
+        color: #fff;
+        width: 38px;
+        height: 38px;
+        line-height: 38px;
+        font-size: 1.2em;
+        text-align: center;
+        position: absolute;
+        top: 10px;
+        left: 0;
+        margin-left: 14px;
+        border-radius: 50%;
+        z-index: 100;
+        box-shadow: 0 0 0 5px #fff; /* White border around badge */
+        background-color: #6c757d; /* Default gray for inactive */
+    }
+    .timeline-badge.status-REPORTED { background-color: #ffc107; }
+    .timeline-badge.status-DISPATCHED { background-color: #17a2b8; }
+    .timeline-badge.status-IN_PROGRESS { background-color: #fd7e14; }
+    .timeline-badge.status-RESOLVED { background-color: #28a745; }
+    .timeline-badge.status-CLOSED { background-color: #6c757d; }
+
+    .timeline-badge.active {
+        box-shadow: 0 0 0 3px #17a2b8; /* Blue highlight for active status */
+    }
+
+    .timeline-panel {
+        position: relative;
+        margin-left: 70px;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        background: #f8f9fa;
+        text-align: left;
+    }
+    .timeline-title {
+        font-weight: bold;
+        color: #224F76;
+    }
+</style>
+
 <script>
-// Initialize tracking map
-const trackingMap = L.map('trackingMap').setView([{{ incident.latitude }}, {{ incident.longitude }}], 14);
-
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap contributors'
-}).addTo(trackingMap);
-
-// Add incident location marker
-const incidentIcon = L.icon({
-    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41]
-});
-
-L.marker([{{ incident.latitude }}, {{ incident.longitude }}], {icon: incidentIcon})
-    .addTo(trackingMap)
-    .bindPopup('<strong>Emergency Location</strong><br>{{ incident.get_emergency_type_display }}')
-    .openPopup();
-
-// Auto-refresh every 10 seconds
-setInterval(() => {
-    document.getElementById('eta').textContent = 'Refreshing...';
-    // In real implementation, fetch updated responder locations
-    setTimeout(() => {
-        document.getElementById('eta').textContent = '5-10 mins';
-    }, 1000);
-}, 10000);
+    // No live scripts are needed for this static status view.
 </script>
 {% endblock %}

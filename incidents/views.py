@@ -11,13 +11,24 @@ from .utils.ai_classifier import EmergencyClassifier
 from .utils.image_detector import EmergencyImageDetector
 from math import radians, sin, cos, sqrt, atan2
 import json
+from django.contrib import messages
+from django.contrib.auth import logout 
 
 # Initialize AI utilities
 classifier = EmergencyClassifier()
 detector = EmergencyImageDetector()
 
+def welcome_screen(request):
+    """New root view to ask user role and route them, forcing admin re-auth."""
+    
+    # --- Enforce Re-authentication for Staff Users ---
+    if request.user.is_authenticated and request.user.is_staff:
+        logout(request)
+    
+    return render(request, 'welcome.html')
+
 def home(request):
-    """Home page with emergency reporting form"""
+    """Home page with emergency reporting form (now at /report/)"""
     return render(request, 'incidents/home.html')
 
 def calculate_distance(lat1, lon1, lat2, lon2):
@@ -45,6 +56,10 @@ def find_nearest_responders(latitude, longitude, emergency_type, count=3):
         'NATURAL': 'RESCUE',
     }
     
+    # If type is 'NONE', it explicitly skips assignment
+    if emergency_type == 'NONE':
+        return []
+        
     responder_type = type_mapping.get(emergency_type, 'AMBULANCE')
     
     # Get available responders
@@ -57,6 +72,7 @@ def find_nearest_responders(latitude, longitude, emergency_type, count=3):
     # Calculate distances
     responder_distances = []
     for responder in available_responders:
+        # Using the local or imported calculate_distance function
         distance = calculate_distance(
             latitude, longitude,
             responder.current_latitude, responder.current_longitude
@@ -69,33 +85,37 @@ def find_nearest_responders(latitude, longitude, emergency_type, count=3):
     
     return [r[0] for r in nearest]
 
-def send_emergency_notification(incident):
-    """Send email notification for new emergency"""
+def send_agency_notification(incident):
+    """Send email notification to the central agency (Hospital, Fire, Police)"""
     try:
         subject = f'🚨 Emergency Alert: {incident.get_emergency_type_display()} - {incident.incident_id}'
         
-        # Find nearby emergency services
+        # --- START: Fetch and Format Nearby Services (Conditional Logic Applied) ---
         nearby_hospitals = find_nearest_emergency_services(incident.latitude, incident.longitude, category='Hospital', count=3)
         nearby_police = find_nearest_emergency_services(incident.latitude, incident.longitude, category='Police Station', count=2)
         nearby_fire = find_nearest_emergency_services(incident.latitude, incident.longitude, category='Fire Station', count=2)
         
-        # Format nearby services for email
         nearby_services_text = "\nNearby Emergency Services:\n"
-        
-        if nearby_hospitals:
-            nearby_services_text += "\nHospitals:\n"
-            for hospital in nearby_hospitals:
-                nearby_services_text += f"- {hospital['name']} ({hospital['distance']} km)\n  {hospital['address']}\n"
-        
-        if nearby_police:
-            nearby_services_text += "\nPolice Stations:\n"
-            for station in nearby_police:
-                nearby_services_text += f"- {station['name']} ({station['distance']} km)\n  {station['address']}\n"
-        
-        if nearby_fire:
-            nearby_services_text += "\nFire Stations:\n"
-            for station in nearby_fire:
-                nearby_services_text += f"- {station['name']} ({station['distance']} km)\n  {station['address']}\n"
+        incident_type = incident.emergency_type
+
+        def format_service_section(title, services):
+            text = ""
+            if services:
+                text += f"\n{title}:\n"
+                for service in services:
+                    text += f"- {service['name']} ({service['distance']} km)\n  {service['address']}\n"
+            return text
+            
+        if incident_type != 'POLICE_ONLY_FOR_MEDICAL': 
+             nearby_services_text += format_service_section("Hospitals", nearby_hospitals)
+
+        if incident_type in ['ACCIDENT', 'CRIME', 'NATURAL', 'OTHER']:
+            nearby_services_text += format_service_section("Police Stations", nearby_police)
+
+        if incident_type in ['FIRE', 'NATURAL']:
+            nearby_services_text += format_service_section("Fire Stations", nearby_fire)
+            
+        # --- END: Fetch and Format Nearby Services ---
         
         message = f"""
         New Emergency Reported!
@@ -128,31 +148,44 @@ def send_emergency_notification(incident):
         
         # Ensure we have valid email settings
         from_email = settings.EMAIL_HOST_USER
+        recipient_list = []
         
-        # Determine recipient email based on emergency type
+        # Define email aliases (MUST be configured in settings.py)
+        POLICE_EMAIL = 'policehydresuce@gmail.com'
+        HOSPITAL_EMAIL = 'nbk.hospitals@gmail.com'
+        FIRE_EMAIL = 'firestation659@gmail.com'
+        
         if incident.emergency_type == 'FIRE':
-            to_email = 'firestation659@gmail.com'
-        elif incident.emergency_type in ['MEDICAL', 'ACCIDENT']:
-            to_email = 'nbk.hospitals@gmail.com'
-        else:  # CRIME, NATURAL, OTHER
-            to_email = 'policehydresuce@gmail.com'
+            recipient_list.append(FIRE_EMAIL)
+            recipient_list.append(HOSPITAL_EMAIL) 
+        elif incident.emergency_type == 'MEDICAL':
+            recipient_list.append(HOSPITAL_EMAIL)
+        elif incident.emergency_type == 'ACCIDENT':
+            recipient_list.append(HOSPITAL_EMAIL)
+            recipient_list.append(POLICE_EMAIL) 
+        elif incident.emergency_type == 'CRIME':
+            recipient_list.append(POLICE_EMAIL)
+            recipient_list.append(HOSPITAL_EMAIL)
+        elif incident.emergency_type == 'NATURAL':
+            recipient_list.append(POLICE_EMAIL)
+            recipient_list.append(HOSPITAL_EMAIL) 
+        elif incident.emergency_type != 'NONE': # Default for OTHER, ensuring NONE is skipped
+            recipient_list.append(POLICE_EMAIL)
         
-        if not from_email or not to_email:
-            print("Email configuration missing: DEFAULT_FROM_EMAIL or recipient email not set")
+        if not from_email or not recipient_list:
+            print("Email configuration missing: DEFAULT_FROM_EMAIL or recipient list is empty")
             return False
             
-        # Send the email with detailed error handling
         result = send_mail(
             subject,
             message,
             from_email,
-            [to_email],
+            recipient_list,
             fail_silently=False,
         )
         
-        # Check if email was sent successfully (send_mail returns the number of successfully sent messages)
         if result > 0:
-            print(f"Email notification sent successfully for incident {incident.incident_id} to {to_email}")
+            print(f"Email notification sent successfully for incident {incident.incident_id} to {', '.join(recipient_list)}")
             return True
         else:
             print(f"Email sending failed for incident {incident.incident_id}: No emails were sent")
@@ -160,9 +193,49 @@ def send_emergency_notification(incident):
             
     except Exception as e:
         import traceback
-        print(f"Email sending failed for incident {incident.incident_id}: {str(e)}")
+        print(f"Agency Email sending failed for incident {incident.incident_id}: {str(e)}")
         print(traceback.format_exc())
         return False
+
+def send_responder_assignment_notification(incident, responder):
+    """Sends a personalized notification to the assigned responder unit."""
+    try:
+        subject = f'✅ New Incident Assignment: {incident.incident_id}'
+        message = f"""
+Dear {responder.name},
+
+You have been assigned to a new incident.
+
+Incident ID: {incident.incident_id}
+Type: {incident.get_emergency_type_display()}
+Severity: {incident.get_severity_display()}
+
+Location:
+Latitude: {incident.latitude}
+Longitude: {incident.longitude}
+Address: {incident.address or 'Not provided'}
+Details: {incident.description}
+
+Please proceed immediately. Your status has been set to BUSY.
+"""
+        from_email = settings.EMAIL_HOST_USER
+        
+        # Ensures the responder has an email before attempting to send
+        if not responder.email:
+            print(f"Skipping assignment email: Responder {responder.name} has no email address.")
+            return
+
+        send_mail(
+            subject,
+            message,
+            from_email,
+            [responder.email], # Sends directly to the responder's email address
+            fail_silently=False,
+        )
+        print(f"Assignment email sent to Responder: {responder.name} ({responder.email})")
+
+    except Exception as e:
+        print(f"Error sending assignment email to Responder {responder.name}: {e}")
 
 @csrf_exempt
 def report_emergency(request):
@@ -179,11 +252,29 @@ def report_emergency(request):
             reporter_phone = request.POST.get('reporter_phone', '')
             reporter_email = request.POST.get('reporter_email', '')
             
+            # Check for missing location data
+            if not latitude or not longitude:
+                raise ValueError("Location coordinates (latitude and longitude) are required.")
+                
+            # Convert to float to ensure consistency with calculate_distance argument expectations
+            try:
+                float(latitude)
+                float(longitude)
+            except ValueError:
+                raise ValueError("Invalid latitude or longitude value.")
+            
             # Combine description and voice transcript
             full_text = f"{description} {voice_transcript}".strip()
             
-            # AI Classification
+            # AI Classification (First Pass)
             emergency_type, severity, confidence = classifier.classify_emergency(full_text)
+            
+            # --- START: NEW CHECK FOR NON-EMERGENCY REPORTS ---
+            if confidence * 100 < 20: # 20% threshold
+                emergency_type = 'NONE'
+                severity = 'LOW'
+                confidence = 0.01 
+            # --- END: NEW CHECK ---
             
             # Create incident
             incident = Incident.objects.create(
@@ -202,27 +293,47 @@ def report_emergency(request):
                 status='REPORTED'
             )
             
-            # Handle image upload
+            # Handle image upload and safety check
             if 'image' in request.FILES:
                 incident.image = request.FILES['image']
                 incident.save()
                 
-                # Run image detection
+                # --- START: IMAGE DETECTION FIX (Corrected Safety Logic) ---
+                print("INFO: Media uploaded. Checking for classification override.")
+                
+                # Store the initial text-based classification for possible fallback
+                initial_type = incident.emergency_type
+                initial_severity = incident.severity
+                
                 try:
-                    detection_result = detector.detect_emergency_objects(incident.image.path)
+                    # 1. Object Detection and Fire Check
+                    detection_log, detected_type = detector.detect_emergency_objects(incident.image.path) 
                     is_fire, fire_conf = detector.analyze_fire(incident.image.path)
                     
                     if is_fire:
-                        detection_result += f" | Fire detected ({fire_conf:.1f}% confidence)"
-                        if incident.emergency_type != 'FIRE':
-                            incident.emergency_type = 'FIRE'
-                            incident.severity = 'CRITICAL'
-                    
-                    incident.ai_detection_result = detection_result
+                        # Safety Rule 1: If FIRE is confirmed, override to CRITICAL
+                        incident.ai_detection_result = f"FIRE CONFIRMED: {fire_conf:.1f}% confidence. Triage enforced. | {detection_log}"
+                        incident.emergency_type = 'FIRE'
+                        incident.severity = 'CRITICAL'
+                    elif detected_type != 'OTHER':
+                        # Safety Rule 2: If ACCIDENT/MEDICAL objects detected, override TYPE and promote severity
+                        # Only override TYPE if the text classification was NONE or OTHER
+                        if initial_type in ['NONE', 'OTHER']:
+                            incident.emergency_type = detected_type
+                            incident.severity = 'HIGH' # Promote severity based on visual confirmation
+                            incident.ai_detection_result = f"VISUAL CHECK: {detection_log}. Type promoted to {detected_type}."
+                        else:
+                            # If text classification was already good (e.g., MEDICAL), just log the detection
+                            incident.ai_detection_result = f"VISUAL CHECK: {detection_log}. Text classification retained."
+                        
                     incident.save()
+                    
                 except Exception as e:
-                    print(f"Image detection error: {e}")
-            
+                    # If ML scan fails entirely, log failure but retain the text classification results
+                    print(f"ML Image scan failed/bypassed: {e}. Trusting text classification.")
+                    
+                # --- END: IMAGE DETECTION FIX ---
+
             # Find and assign nearest responders
             nearest_responders = find_nearest_responders(
                 incident.latitude,
@@ -230,31 +341,62 @@ def report_emergency(request):
                 incident.emergency_type
             )
             
-            # Assign responders
-            for responder in nearest_responders:
-                IncidentAssignment.objects.create(
-                    incident=incident,
-                    responder=responder
-                )
-                responder.status = 'BUSY'
-                responder.save()
+            # Initialize response status
+            response_message = 'Report received. No immediate dispatch required.'
             
-            # Update incident status
+            if incident.emergency_type == 'NONE':
+                 incident.status = 'CLOSED'
+                 incident.save()
+                 
+                 return JsonResponse({
+                     'success': True,
+                     'incident_id': incident.incident_id,
+                     'emergency_type': 'NON-EMERGENCY',
+                     'severity': 'NONE',
+                     'responders_assigned': 0,
+                     'message': 'Report classified as non-emergency (Confidence too low). Dispatch aborted.'
+                 })
+            
+            # Assign responders (Only if type is NOT NONE)
+            assigned_responders = [] 
             if nearest_responders:
+                for responder in nearest_responders:
+                    IncidentAssignment.objects.create(
+                        incident=incident,
+                        responder=responder
+                    )
+                    responder.status = 'BUSY'
+                    responder.save()
+                    assigned_responders.append(responder) 
+
+            
+            # Update incident status and set final message
+            if assigned_responders:
                 incident.status = 'DISPATCHED'
                 incident.dispatched_at = timezone.now()
                 incident.save()
+                # --- SUCCESS MESSAGE MODIFICATION ---
+                response_message = 'Emergency reported successfully! Help is on the way.'
+            else:
+                # --- FAILURE MESSAGE MODIFICATION (for non-availability) ---
+                incident.status = 'REPORTED' # Ensure status remains 'REPORTED' if not dispatched
+                incident.save()
+                response_message = f"Critical incident ({incident.get_emergency_type_display()}) reported. We have notified the control room and are mobilizing alternative resources **immediately**."
+                
+            # Send initial agency email notification
+            send_agency_notification(incident) 
             
-            # Send email notification
-            send_emergency_notification(incident)
+            # Send personalized notification to each assigned responder (only if dispatched)
+            for responder in assigned_responders:
+                send_responder_assignment_notification(incident, responder) 
             
             return JsonResponse({
                 'success': True,
                 'incident_id': incident.incident_id,
                 'emergency_type': incident.get_emergency_type_display(),
                 'severity': incident.get_severity_display(),
-                'responders_assigned': len(nearest_responders),
-                'message': 'Emergency reported successfully! Help is on the way.'
+                'responders_assigned': len(assigned_responders), # Use len(assigned_responders) here
+                'message': response_message
             })
             
         except Exception as e:
@@ -285,26 +427,13 @@ def incident_detail(request, incident_id):
     return render(request, 'incidents/incident_detail.html', context)
 
 def track_incident(request, incident_id):
-    """Real-time incident tracking page"""
+    """Real-time incident tracking page (Simplified Timeline)"""
     incident = get_object_or_404(Incident, incident_id=incident_id)
-    
-    # Find nearby emergency services
-    nearby_hospitals = find_nearest_emergency_services(incident.latitude, incident.longitude, category='Hospital', count=3)
-    nearby_police = find_nearest_emergency_services(incident.latitude, incident.longitude, category='Police Station', count=2)
-    nearby_fire = find_nearest_emergency_services(incident.latitude, incident.longitude, category='Fire Station', count=2)
     
     return render(request, 'incidents/track_incident.html', {
         'incident': incident,
-        'nearby_hospitals': nearby_hospitals,
-        'nearby_police': nearby_police,
-        'nearby_fire': nearby_fire
     })
 
-
-# Add this to the existing incidents/views.py
-
-from django.shortcuts import redirect
-from django.contrib import messages
 
 def update_incident_status_view(request, incident_id):
     """Handle status updates from incident detail page"""
@@ -329,3 +458,33 @@ def update_incident_status_view(request, incident_id):
             messages.error(request, 'Invalid status selected')
     
     return redirect('incidents:incident_detail', incident_id=incident_id)
+
+
+def tracking_panel(request):
+    """Public facing page with the tracking panel (renders home page with tracking focus)"""
+    return render(request, 'incidents/home.html')
+    
+def track_incident_by_id(request, incident_id):
+    """Helper view to redirect based on ID or show error"""
+    try:
+        Incident.objects.get(incident_id=incident_id)
+        return redirect('incidents:track_incident', incident_id=incident_id)
+    except Incident.DoesNotExist:
+        return redirect('incidents:tracking_panel') 
+
+def tracking_panel_submit(request):
+    """Handles the form submission from the tracking panel"""
+    if request.method == 'POST':
+        incident_id = request.POST.get('incident_id', '').strip()
+        if not incident_id:
+            messages.error(request, 'Please enter a valid Incident ID.')
+            return redirect('incidents:tracking_panel') 
+            
+        try:
+            Incident.objects.get(incident_id=incident_id)
+            return redirect('incidents:track_incident', incident_id=incident_id)
+        except Incident.DoesNotExist:
+            messages.error(request, f'Incident ID {incident_id} not found. Please check the ID and try again.')
+            return redirect('incidents:tracking_panel')
+    
+    return redirect('incidents:tracking_panel')

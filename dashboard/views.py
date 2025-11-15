@@ -1,14 +1,19 @@
 from django.shortcuts import render
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import user_passes_test # CHANGED IMPORT
 from incidents.models import Incident
 from responders.models import Responder, IncidentAssignment
 from django.db.models import Count, Q, Avg
 from django.utils import timezone
 from datetime import timedelta
+import json 
 
+def is_staff_user(user):
+    """Check if the user is authenticated and is a staff member."""
+    return user.is_authenticated and user.is_staff
 
+@user_passes_test(is_staff_user) # ENFORCES STAFF ACCESS
 def control_room_dashboard(request):
-    """Main control room dashboard"""
+    """Main control room dashboard (Staff access only)"""
     # Get recent incidents
     recent_incidents = Incident.objects.all()[:20]
     
@@ -60,7 +65,6 @@ def control_room_dashboard(request):
             # Skip incidents with invalid coordinates
             continue
     
-    import json
     active_incidents_json = json.dumps(active_incidents_list)
     
     context = {

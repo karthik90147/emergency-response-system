@@ -13,9 +13,10 @@ except:
 class EmergencyClassifier:
     def __init__(self):
         self.emergency_keywords = {
-            'FIRE': ['fire', 'smoke', 'burning', 'flames', 'blaze', 'explosion', 'blast'],
+            # ADDED 'collapsing' to catch structural failure as a strong FIRE indicator
+            'FIRE': ['fire', 'smoke', 'burning', 'flames', 'blaze', 'explosion', 'blast', 'collapsing'],
             'MEDICAL': ['injured', 'hurt', 'pain', 'sick', 'blood', 'accident', 'heart attack', 
-                       'unconscious', 'breathing', 'chest pain', 'ambulance', 'medical'],
+                       'unconscious', 'breathing', 'chest pain', 'ambulance', 'medical', 'trapped'],
             'ACCIDENT': ['accident', 'crash', 'collision', 'hit', 'vehicle', 'car', 'bike', 
                         'truck', 'fell', 'road'],
             'CRIME': ['robbery', 'theft', 'stolen', 'attack', 'assault', 'violence', 'police',
@@ -25,8 +26,9 @@ class EmergencyClassifier:
         }
         
         self.severity_keywords = {
+            # ADDED 'collapsing' and 'trapped' to ensure CRITICAL status
             'CRITICAL': ['dying', 'dead', 'critical', 'severe', 'extreme', 'urgent', 'emergency',
-                        'life-threatening', 'unconscious', 'bleeding heavily'],
+                        'life-threatening', 'unconscious', 'bleeding heavily', 'collapsing', 'trapped'],
             'HIGH': ['serious', 'major', 'significant', 'dangerous', 'urgent', 'injured',
                     'multiple', 'large'],
             'MEDIUM': ['moderate', 'some', 'minor injuries', 'smoke', 'small'],
@@ -76,6 +78,7 @@ class EmergencyClassifier:
     def analyze_sentiment(self, text):
         """Analyze urgency based on sentiment"""
         try:
+            from textblob import TextBlob
             blob = TextBlob(text)
             polarity = blob.sentiment.polarity
             
